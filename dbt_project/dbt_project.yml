@@ -1,0 +1,54 @@
+# =============================================================================
+# dbt プロジェクト設定 (Chapter 1 で学ぶ)
+# =============================================================================
+# このファイルは dbt プロジェクトのルート設定ファイル。
+# プロジェクト名、ディレクトリ構成、モデルのデフォルト設定を定義する。
+#
+# 【dbt の基本概念】
+# dbt (data build tool) は SQL ベースのデータ変換ツール。
+# - SELECT 文を書くだけでテーブル/ビューを作成・管理できる
+# - モデル間の依存関係を自動で解決する (DAG)
+# - テスト・ドキュメント・バージョン管理が組み込まれている
+# =============================================================================
+
+name: 'medallion_dbt'
+version: '1.0.0'
+
+# profile: profiles.yml の中で使うプロファイル名
+# Snowflake への接続情報はここではなく profiles.yml に書く（認証情報の分離）
+profile: 'medallion_dbt'
+
+# ディレクトリ構成
+model-paths: ["models"]         # SQL モデルの格納場所
+test-paths: ["tests"]           # カスタムテストの格納場所
+snapshot-paths: ["snapshots"]   # スナップショットの格納場所
+macro-paths: ["macros"]         # マクロ（再利用可能な Jinja テンプレート）の格納場所
+analysis-paths: ["analyses"]    # 分析用 SQL（テーブル作成なし）の格納場所
+
+# コンパイル結果の出力先
+clean-targets:
+  - "target"    # dbt run で生成されたコンパイル済み SQL の出力先
+  - "dbt_packages"  # dbt deps でインストールしたパッケージの格納先
+
+# =============================================================================
+# モデルのデフォルト設定
+# =============================================================================
+# 【materialization（実体化方式）の種類】
+# - view:        CREATE VIEW を実行。データは保持しない。軽量だが毎回クエリ実行。
+# - table:       CREATE TABLE AS SELECT を実行。データを保持。高速だがストレージ消費。
+# - incremental: 初回は table と同じ。2回目以降は差分のみ MERGE/INSERT。大量データ向け。
+# - ephemeral:   テーブル/ビューを作らず、参照元に CTE として埋め込む。
+# =============================================================================
+models:
+  medallion_dbt:
+    # staging（= Silver 層）: デフォルトは view
+    # 出力先スキーマ: RETAIL_DWH.SILVER_DBT
+    staging:
+      +schema: SILVER_DBT
+      +materialized: view
+
+    # marts（= Gold 層）: デフォルトは table
+    # 出力先スキーマ: RETAIL_DWH.GOLD_DBT
+    marts:
+      +schema: GOLD_DBT
+      +materialized: table

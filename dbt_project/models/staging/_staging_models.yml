@@ -1,0 +1,152 @@
+# =============================================================================
+# Staging モデルのテスト・ドキュメント定義 (Chapter 5, 8 で学ぶ)
+# =============================================================================
+# 【スキーマテストとは】
+# YAML ファイルでカラムに対してテストを宣言的に定義できる。
+# dbt test コマンドで一括実行される。
+#
+# 【組み込みテストの種類】
+# - unique:           値が一意であること（重複なし）
+# - not_null:         NULL 値がないこと
+# - accepted_values:  指定した値のみ含むこと
+# - relationships:    他のモデルに対応するレコードが存在すること（外部キーチェック）
+#
+# 【実行方法】
+# dbt test                           # 全テスト実行
+# dbt test --select stg_members      # stg_members のテストのみ
+# dbt test --select test_type:schema # スキーマテストのみ
+# =============================================================================
+
+version: 2
+
+models:
+  # ---------------------------------------------------------------------------
+  # stg_members (Silver Members)
+  # ---------------------------------------------------------------------------
+  - name: stg_members
+    description: >
+      Silver Members: Bronze.MEMBERS の VARIANT データから各フィールドを抽出・型変換したビュー。
+      元の Dynamic Table SILVER.MEMBERS (10_silver_members_dt.sql) と同等。
+      毎日全件リロードされるため view で十分（約1,000行）。
+    columns:
+      - name: member_id
+        description: "会員ID（MongoDB ObjectID の文字列表現）"
+        tests:
+          - unique
+          - not_null
+      - name: email
+        description: "会員のメールアドレス"
+        tests:
+          - not_null
+      - name: member_name
+        description: "会員名"
+      - name: is_active
+        description: "アクティブ会員かどうか"
+        tests:
+          - not_null
+          - accepted_values:
+              values: [true, false]
+      - name: member_rank
+        description: "会員ランク（REGULAR / SILVER / GOLD / PLATINUM）"
+        tests:
+          - accepted_values:
+              values: ['REGULAR', 'SILVER', 'GOLD', 'PLATINUM']
+              config:
+                severity: warn
+      - name: registered_at
+        description: "会員登録日時（JST）"
+        tests:
+          - not_null
+      - name: updated_at
+        description: "最終更新日時（JST）"
+        tests:
+          - not_null
+      - name: ym
+        description: "登録年月（YYYYMM 形式、パーティションキー）"
+      - name: ymd
+        description: "登録年月日（YYYYMMDD 形式、パーティションキー）"
+
+  # ---------------------------------------------------------------------------
+  # stg_transactions (Silver Transactions)
+  # ---------------------------------------------------------------------------
+  - name: stg_transactions
+    description: >
+      Silver Transactions: Bronze.TRANSACTIONS の VARIANT データから ID-POS 購買トランザクションを抽出・型変換。
+      元の MERGE INTO SILVER.TRANSACTIONS (12_initial_merge.sql) と同等。
+      incremental モデル（merge 戦略）で差分更新を行う。
+    columns:
+      - name: _id_str
+        description: "レコード ID（MongoDB $binary の base64 エンコード）"
+        tests:
+          - unique
+          - not_null
+      - name: transaction_id
+        description: "トランザクション ID"
+      - name: card_number
+        description: "ポイントカード番号（ハッシュ化済み）"
+      - name: product_name
+        description: "商品名"
+      - name: unit_price
+        description: "単価（税抜き）"
+      - name: quantity
+        description: "購入数量"
+      - name: transaction_date
+        description: "取引日時（JST）"
+        tests:
+          - not_null
+      - name: created_at
+        description: "レコード作成日時（JST）"
+      - name: updated_at
+        description: "レコード最終更新日時（JST）"
+      - name: ym
+        description: "取引年月（YYYYMM 形式）"
+      - name: ymd
+        description: "取引年月日（YYYYMMDD 形式）"
+
+  # ---------------------------------------------------------------------------
+  # stg_daily_member_summary (Silver Daily Member Summary)
+  # ---------------------------------------------------------------------------
+  - name: stg_daily_member_summary
+    description: >
+      Silver Daily Member Summary: Bronze.DAILY_MEMBER_SUMMARY から会員別日次集計を抽出・型変換。
+      元の MERGE INTO SILVER.DAILY_MEMBER_SUMMARY (12_initial_merge.sql) と同等。
+      incremental モデル（merge 戦略）で差分更新。更新率が約98%と非常に高い。
+    columns:
+      - name: _id
+        description: "集計結果 ID（形式: \"{member_id}-{YYYY-MM-DD}\"）"
+        tests:
+          - unique
+          - not_null
+      - name: member_id
+        description: "会員 ID（整数）"
+        tests:
+          - not_null
+          - relationships:
+              to: ref('stg_members')
+              field: "member_id"
+              config:
+                # member_id は整数、member_id (members) は文字列のため型変換が必要
+                # このテストは参照整合性の概念を学ぶためのもの
+                severity: warn
+      - name: has_purchased
+        description: "その日に購入があったかどうか"
+        tests:
+          - accepted_values:
+              values: [true, false]
+      - name: has_returned
+        description: "その日に返品があったかどうか"
+        tests:
+          - accepted_values:
+              values: [true, false]
+      - name: summary_date
+        description: "集計対象日（JST）"
+        tests:
+          - not_null
+      - name: created_at
+        description: "レコード作成日時（JST）"
+      - name: updated_at
+        description: "レコード最終更新日時（JST）"
+      - name: ym
+        description: "作成年月（YYYYMM 形式）"
+      - name: ymd
+        description: "作成年月日（YYYYMMDD 形式）"

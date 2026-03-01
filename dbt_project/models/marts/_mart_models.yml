@@ -1,0 +1,91 @@
+# =============================================================================
+# Marts モデルのテスト・ドキュメント定義 (Chapter 8 で学ぶ)
+# =============================================================================
+# 【description の効果】
+# ここで書いた description は dbt docs serve のデータカタログに表示される。
+# チームメンバーがブラウザでテーブルの意味やカラムの定義を確認できる。
+#
+# 【relationships テスト】
+# 外部キー的な参照整合性をチェックするテスト。
+# 例: mart_member_purchase_summary の member_id が stg_daily_member_summary に存在するか。
+#
+# 【実行方法】
+# dbt test --select tag:mart   # mart タグのテストのみ（タグを設定した場合）
+# dbt docs generate && dbt docs serve  # ドキュメント生成・閲覧
+# =============================================================================
+
+version: 2
+
+models:
+  # ---------------------------------------------------------------------------
+  # mart_monthly_active_members
+  # ---------------------------------------------------------------------------
+  - name: mart_monthly_active_members
+    description: >
+      月別アクティブ会員数。has_purchased=TRUE のユニーク会員を月ごとにカウント。
+      元の Dynamic Table GOLD.MONTHLY_ACTIVE_MEMBERS と同等。
+    columns:
+      - name: ym
+        description: "年月（YYYYMM 形式）"
+        tests:
+          - unique
+          - not_null
+      - name: active_member_count
+        description: "その月に購入のあったユニーク会員数"
+        tests:
+          - not_null
+
+  # ---------------------------------------------------------------------------
+  # mart_monthly_sales_summary
+  # ---------------------------------------------------------------------------
+  - name: mart_monthly_sales_summary
+    description: >
+      月別売上サマリ。購入者数、取引件数、総売上を月ごとに集計。
+      元の Dynamic Table GOLD.MONTHLY_SALES_SUMMARY と同等。
+    columns:
+      - name: ym
+        description: "年月（YYYYMM 形式）"
+        tests:
+          - unique
+          - not_null
+      - name: buyer_count
+        description: "その月のユニーク購入者数（カード番号ベース）"
+        tests:
+          - not_null
+      - name: transaction_count
+        description: "その月の総取引件数"
+        tests:
+          - not_null
+      - name: total_sales
+        description: "その月の総売上（unit_price * quantity の合計）"
+        tests:
+          - not_null
+
+  # ---------------------------------------------------------------------------
+  # mart_member_purchase_summary
+  # ---------------------------------------------------------------------------
+  - name: mart_member_purchase_summary
+    description: >
+      会員別購買サマリ。会員ごとの集計日数、購入日数、返品日数を集計。
+      stg_daily_member_summary と stg_members を JOIN して作成。
+      元の Dynamic Table GOLD.MEMBER_PURCHASE_SUMMARY と同等。
+    columns:
+      - name: member_id
+        description: "会員 ID（整数）"
+        tests:
+          - unique
+          - not_null
+      - name: member_name
+        description: "会員名（stg_members から JOIN）"
+      - name: total_days
+        description: "集計対象の総日数"
+        tests:
+          - not_null
+      - name: purchase_days
+        description: "購入があった日数（has_purchased=TRUE の日数）"
+        tests:
+          - not_null
+      - name: return_days
+        description: "返品があった日数（has_returned=TRUE の日数）"
+        tests:
+          - not_null

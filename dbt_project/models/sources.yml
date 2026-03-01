@@ -1,0 +1,87 @@
+# =============================================================================
+# Bronze ソース定義 (Chapter 2 で学ぶ)
+# =============================================================================
+# 【source() とは】
+# dbt の source() 関数は、dbt が管理していない外部テーブルを参照するための仕組み。
+# ここで定義したテーブルは {{ source('bronze', 'members') }} のように参照できる。
+#
+# 【なぜ source() を使うのか】
+# 1. FROM BRONZE.MEMBERS と直接書く代わりに source() を使うと:
+#    - テーブル名が変わっても、ここを1箇所変えるだけで全モデルに反映される
+#    - dbt docs のリネージグラフに外部テーブルが表示される
+#    - freshness チェック（データの鮮度監視）が使える
+#
+# 【freshness（鮮度チェック）とは】
+# source に loaded_at_field を設定すると、dbt source freshness コマンドで
+# 「最後にデータがロードされたのはいつか」を自動チェックできる。
+#
+# 【実行方法】
+# cd dbt_project
+# dbt source freshness
+# =============================================================================
+
+version: 2
+
+sources:
+  - name: bronze
+    database: RETAIL_DWH
+    schema: BRONZE
+    description: >
+      GCS から COPY INTO でロードされた生データ。
+      各テーブルの RAW_DATA カラムに JSON 全体が VARIANT 型で格納されている。
+      Bronze 層は dbt の管理外（Snowflake ネイティブの DAILY_LOAD タスクがロードする）。
+
+    # freshness: 全テーブル共通のデフォルト設定
+    # warn_after: 36時間データがロードされていなければ警告
+    # error_after: 48時間データがロードされていなければエラー
+    freshness:
+      warn_after: {count: 36, period: hour}
+      error_after: {count: 48, period: hour}
+    loaded_at_field: LOADED_AT  # タイムスタンプカラム（07_bronze_tables.sql で定義）
+
+    tables:
+      # -----------------------------------------------------------------------
+      # MEMBERS: 会員マスタ（毎日全件リロード、約1,000行）
+      # -----------------------------------------------------------------------
+      - name: members
+        description: >
+          ポイントカード会員のプロフィール生データ。毎日 FULL リロード（TRUNCATE + COPY INTO）。
+          約1,000行。ストアドプロシージャ LOAD_COLLECTION で LOAD_TYPE='FULL' としてロード。
+        columns:
+          - name: RAW_DATA
+            description: "JSON ドキュメント全体を格納する VARIANT 型カラム"
+          - name: LOAD_DATE
+            description: "データのロード対象日（DATE 型）"
+          - name: LOADED_AT
+            description: "Snowflake にロードされた実際のタイムスタンプ（TIMESTAMP_LTZ）"
+
+      # -----------------------------------------------------------------------
+      # TRANSACTIONS: ID-POS 購買トランザクション（毎日差分追加、初期約100,000行）
+      # -----------------------------------------------------------------------
+      - name: transactions
+        description: >
+          ID-POS 購買トランザクションの生データ。毎日 DAILY 差分ロード（COPY INTO で追記）。
+          初期ロード約100,000行、毎日約10,000行追加（うち約1.7%が既存レコードの更新）。
+        columns:
+          - name: RAW_DATA
+            description: "JSON ドキュメント全体を格納する VARIANT 型カラム"
+          - name: LOAD_DATE
+            description: "データのロード対象日（DATE 型）"
+          - name: LOADED_AT
+            description: "Snowflake にロードされた実際のタイムスタンプ（TIMESTAMP_LTZ）"
+
+      # -----------------------------------------------------------------------
+      # DAILY_MEMBER_SUMMARY: 会員別日次集計（毎日差分追加、初期約350,000行）
+      # -----------------------------------------------------------------------
+      - name: daily_member_summary
+        description: >
+          会員別日次購買集計の生データ。毎日 DAILY 差分ロード。
+          初期ロード約350,000行、毎日約10,000行追加（うち約98%が既存レコードの更新）。
+          更新率が非常に高いため、MERGE のパフォーマンスが重要。
+        columns:
+          - name: RAW_DATA
+            description: "JSON ドキュメント全体を格納する VARIANT 型カラム"
+          - name: LOAD_DATE
+            description: "データのロード対象日（DATE 型）"
+          - name: LOADED_AT
+            description: "Snowflake にロードされた実際のタイムスタンプ（TIMESTAMP_LTZ）"

@@ -1,0 +1,13 @@
+# dbt 生成物
+target/
+dbt_packages/
+logs/
+
+# Python 仮想環境
+.venv/
+
+# dbt ユーザー設定（自動生成）
+.user.yml
+
+# 認証情報
+# profiles.yml   # ← 学習用プロジェクトなのでコミットする。本番では除外すること。

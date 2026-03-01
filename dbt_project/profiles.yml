@@ -1,0 +1,47 @@
+# =============================================================================
+# Snowflake 接続設定 (Chapter 1 で学ぶ)
+# =============================================================================
+# profiles.yml は dbt が Snowflake に接続するための認証情報を定義する。
+#
+# 【重要】
+# - このファイルには認証情報が含まれるため、本番では .gitignore に追加すること
+# - 環境変数 {{ env_var('...') }} を使えば、値を直接書かずに済む
+# - 本番では ~/.dbt/profiles.yml に配置するのが一般的
+#
+# 【セットアップ手順】
+# 1. 環境変数を設定:
+#    export SNOWFLAKE_USER=your_username
+#    export SNOWFLAKE_PASSWORD=your_password
+# 2. dbt debug で接続確認
+# =============================================================================
+
+medallion_dbt:
+  target: dev   # デフォルトで使う環境（dev / prod を切り替え可能）
+  outputs:
+    dev:
+      type: snowflake
+      account: your-account-id
+
+      # 認証情報（環境変数から読み込む）
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      password: "{{ env_var('SNOWFLAKE_PASSWORD') }}"
+
+      # Snowflake の設定
+      role: ACCOUNTADMIN
+      database: RETAIL_DWH
+      warehouse: RETAIL_WH
+      schema: PUBLIC          # デフォルトスキーマ（モデルごとに上書き可能）
+      threads: 4              # 並列実行数（モデルを同時に何個ビルドするか）
+
+    # Snowflake Task 実行用（Chapter 11）
+    # Snowflake 内で dbt を実行する場合、認証は RBAC が処理するため
+    # account / user は不要（プレースホルダを指定）
+    prod:
+      type: snowflake
+      account: 'not needed'
+      user: 'not needed'
+      role: ACCOUNTADMIN
+      database: RETAIL_DWH
+      warehouse: RETAIL_WH
+      schema: PUBLIC
+      threads: 4
