@@ -1,0 +1,21 @@
+-- =============================================================================
+-- Phase C: IAM 連携
+-- =============================================================================
+-- ※ このフェーズは GCP 側の操作が必要なため、SQL だけでは完結しない。
+--
+-- 手順:
+-- 1. 以下の SQL で STORAGE_GCP_SERVICE_ACCOUNT を取得
+-- 2. GCP Console → Cloud Storage → バケット → 権限タブ で
+--    そのサービスアカウントに「Storage Object Viewer」ロールを付与
+--
+-- または gcloud CLI:
+--   gcloud storage buckets add-iam-policy-binding gs://your-gcs-bucket-name \
+--     --member="serviceAccount:<STORAGE_GCP_SERVICE_ACCOUNT>" \
+--     --role="roles/storage.objectViewer"
+--
+-- 【学べること】
+-- - Snowflake と GCP 間の IAM 連携の仕組み
+-- - サービスアカウントベースの認証フロー
+-- =============================================================================
+
+DESC STORAGE INTEGRATION GCS_INTEGRATION;
